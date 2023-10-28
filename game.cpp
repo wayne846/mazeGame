@@ -3,13 +3,24 @@
 #include <vector>
 #include <string>
 #include <queue>
+#include <list>
+
+//目前沒甚麼用的標籤，只有觀察者模式會用到
+#define TAG_WALL "wall"
+#define TAG_AIR "air"
+#define TAG_BILLBOARD "billboard"
+#define TAG_LEVER "lever"
+#define TAG_GATE "gate"
 
 using namespace std;
 
 class World;
 class Room;
 class Player;
+class Subject;
+class Observer;
 
+//單例模式
 class Message{
     private:
         Message(){
@@ -44,6 +55,67 @@ class Message{
         }
 };
 Message* Message::instance = nullptr;
+
+
+//觀察者模式
+class Subject{
+    protected:
+        string tag;
+        int id;
+    public:
+        virtual void registerObserver(Observer *o) = 0;
+        virtual void removeObserver(Observer *o) = 0;
+        virtual void notifyObservers() = 0;
+
+        string getTag(){
+            return tag;
+        }
+        int getId(){
+            return id;
+        }
+        void setId(int i){
+            id = i;
+        }
+};
+class Observer{
+    protected:
+        string tag;
+        int id;
+        Subject *subject;
+    public:
+        virtual void update() = 0;
+
+        string getTag(){
+            return tag;
+        }
+        int getId(){
+            return id;
+        }
+        void setId(int i){
+            id = i;
+        }
+        void setSubject(Subject *s){
+            subject = s;
+            subject->registerObserver(this);
+        }
+};
+
+//用來初始化世界
+class WorldSetter{
+    private:
+        static list<Subject*> subjectList;
+        static list<Observer*> observerList;
+        static Room* createRoom1();
+        static Room* createRoom2();
+        static Room* createRoom3();
+        static Room* createRoom4();
+        static void linkingTiles();
+
+    public:
+        static void worldSetup(World*, Player*);
+        static void addSubject(Subject*);
+        static void addObserver(Observer*);
+};
 
 //給所有種類的磚塊繼承用
 class Tile{
@@ -91,6 +163,7 @@ class Air : public Tile{
         void detected(){}
 };
 
+//告示牌
 class Billboard : public Tile{
     private:
         string message;
@@ -114,10 +187,75 @@ class Billboard : public Tile{
         }
 };
 
+//拉桿
+class Lever : public Tile, public Subject{
+    private:
+        list<Observer*> observers;
+    public:
+        Lever(){
+            this->symbol = '/';
+            this->tag = TAG_LEVER;
+            this->id = 0;
+            this->isBlock = true;
+            this->isInteractive = true;
+        }
+
+        void interact(){
+            Message::getInstance()->addMessage("The door in somewhere open");
+            notifyObservers();
+            isInteractive = false;
+        }
+        void detected(){
+            Message::getInstance()->addMessage("press e to use the lever('/')");
+        }
+
+        void registerObserver(Observer *o){
+            observers.push_back(o);
+        }
+        void removeObserver(Observer *o){
+            observers.remove(o);
+        }
+        void notifyObservers(){ //list不能在迭代過程中修改元素 "erase list iterator"，所以先丟進vector
+            vector<Observer*> v;
+            for(Observer *observer : observers){
+                v.push_back(observer);
+            }
+            for(int i = 0; i < v.size(); i++){
+                v[i]->update();
+            }
+        }
+};
+
+//閘門，由拉桿開啟
+class Gate : public Tile, public Observer{
+    public:
+        Gate(){
+            this->symbol = 'D';
+            this->tag = TAG_GATE;
+            this->id = 0;
+            this->isBlock = true;
+            this->isInteractive = false;
+        }
+
+        void interact(){
+            symbol = ' ';
+            isBlock = false;
+            subject->removeObserver(this);
+        }
+        void detected(){}
+
+        void update(){
+            interact();
+        }
+
+};
+
 //製造Tile，還可以修改Tile 簡單工廠
 class TillFactory{
     private:
         queue<string> billboardMessageList; //Billboard的訊息 依序放入
+        queue<int> leverIdList;
+        queue<int> gateIdList;
 
     public:
         TillFactory(){
@@ -135,11 +273,35 @@ class TillFactory{
                 }
                 return b;
             }
+            if (a == '/'){
+                Lever *l = new Lever();
+                if (!leverIdList.empty()){
+                    l->setId(leverIdList.front());
+                    leverIdList.pop();
+                }
+                WorldSetter::addSubject(l);
+                return l;
+            }
+            if (a == 'D'){
+                Gate *g = new Gate();
+                if (!gateIdList.empty()){
+                    g->setId(gateIdList.front());
+                    gateIdList.pop();
+                }
+                WorldSetter::addObserver(g);
+                return g;
+            }
             return 0;
         }
 
         void addBillboardMessage(string s){
             billboardMessageList.push(s);
+        }
+        void addLeverId(int i){
+            leverIdList.push(i);
+        }
+        void addGateId(int i){
+            gateIdList.push(i);
         }
 };
 
@@ -357,7 +519,6 @@ class Player{
                 bias = 1;
             }
             if (getCurrentRoom()->getContent(position + bias) == 0){
-                position += bias;
                 return;
             }else if (getCurrentRoom()->getContent(position + bias)->getIsBlock() == false){
                 position += bias;
@@ -381,16 +542,109 @@ class Player{
         
 };
 
+//類別間互相使用 所以要先宣告再定義
+list<Subject*> WorldSetter::subjectList;
+list<Observer*> WorldSetter::observerList;
+Room* WorldSetter::createRoom1(){
+    char t[] = {
+        '*', '*', '!', '*', '*',
+        '*', ' ', ' ', ' ', '*',
+        '*', ' ', ' ', ' ', ' ',
+        '*', ' ', ' ', ' ', '*',
+        '*', '*', ' ', '*', '*',
+    };
+    TillFactory *factory = new TillFactory();
+    factory->addBillboardMessage("Room 1");
+    Room *room = new Room(5, 5, 0, factory, t);
+    room->setRightRoomNumber(1);
+    room->setDownRoomNumber(2);
+    return room;
+}
+Room* WorldSetter::createRoom2(){
+    char t[] = {
+        '*', '*', '!', '*', '*', '!', '*',
+        '*', '*', ' ', ' ', ' ', ' ', '*',
+        ' ', ' ', ' ', ' ', ' ', ' ', '/',
+        '*', '*', ' ', ' ', ' ', ' ', '*',
+        '*', '*', ' ', '*', '*', '*', '*',
+    };
+    TillFactory *factory = new TillFactory();
+    factory->addBillboardMessage("Room 2");
+    factory->addBillboardMessage("Go to Study!!!");
+    Room *room = new Room(7, 5, 1, factory, t);
+    room->setRightRoomNumber(0);
+    room->setDownRoomNumber(3);
+    return room;
+}
+Room* WorldSetter::createRoom3(){
+    char t[] = {
+        '*', '*', ' ', '*', '*', '*', '*',
+        '*', '*', ' ', ' ', ' ', '*', '*',
+        '*', '*', ' ', ' ', ' ', ' ', 'D',
+        '*', '*', ' ', ' ', ' ', '*', '*',
+        '*', '*', '*', '!', '*', '*', '*',
+    };
+    TillFactory *factory = new TillFactory();
+    factory->addBillboardMessage("Room 3");
+    Room *room = new Room(7, 5, 2, factory, t);
+    room->setUpRoomNumber(0);
+    room->setRightRoomNumber(3);
+    return room;
+}
+Room* WorldSetter::createRoom4(){
+    char t[] = {
+        '*', '*', ' ', '*', '*',
+        '*', ' ', ' ', ' ', '*',
+        'D', ' ', ' ', ' ', '*',
+        '*', ' ', ' ', ' ', '!',
+        '*', ' ', ' ', ' ', '*',
+        '*', ' ', ' ', ' ', '*',
+        '*', '*', '*', '*', '*',
+    };
+    TillFactory *factory = new TillFactory();
+    factory->addBillboardMessage("Room 4");
+    Room *room = new Room(5, 7, 3, factory, t);
+    room->setUpRoomNumber(1);
+    room->setLeftRoomNumber(2);
+    return room;
+}
+void WorldSetter::linkingTiles(){
+    for (Subject *subject : subjectList){
+        for (Observer *observer : observerList){
+            if (subject->getTag() == TAG_LEVER && observer->getTag() == TAG_GATE && subject->getId() == observer->getId()){
+                observer->setSubject(subject);
+            }
+        }
+    }
+}
+void WorldSetter::worldSetup(World* world, Player* player){
+    world->addRoom(createRoom1());
+    world->addRoom(createRoom2());
+    world->addRoom(createRoom3());
+    world->addRoom(createRoom4());
+
+    linkingTiles();
+
+    player->currentWorld = world;
+    player->currentRoomNumber = 0;
+    player->position = player->getCurrentRoom()->getWidth()+1;
+}
+void WorldSetter::addSubject(Subject* s){
+    subjectList.push_back(s);
+}
+void WorldSetter::addObserver(Observer* o){
+    observerList.push_back(o);
+}
+
 
 void display(Player*);
-void worldSetup(World*, Player*);
 
 int main(){
     char input = '0';
     World *world1 = new World();
     Player *player = new Player();
 
-    worldSetup(world1, player);
+    WorldSetter::worldSetup(world1, player);
 
     while(input != 'z'){
         display(player);
@@ -416,69 +670,4 @@ void display(Player *player){
     Message *message = Message::getInstance();
     cout << message->getMessage() << '\n';
     message->clearMessage();
-}
-
-void worldSetup(World *world, Player *player){
-    char t1[] = {
-        '*', '*', '!', '*', '*',
-        '*', ' ', ' ', ' ', '*',
-        '*', ' ', ' ', ' ', ' ',
-        '*', ' ', ' ', ' ', '*',
-        '*', '*', ' ', '*', '*',
-    };
-    TillFactory *factory1 = new TillFactory();
-    factory1->addBillboardMessage("Room 1");
-    Room *room1 = new Room(5, 5, 0, factory1, t1);
-    room1->setRightRoomNumber(1);
-    room1->setDownRoomNumber(2);
-    world->addRoom(room1);
-
-    char t2[] = {
-        '*', '*', '!', '*', '*', '!', '*',
-        '*', '*', ' ', ' ', ' ', ' ', '*',
-        ' ', ' ', ' ', ' ', ' ', ' ', '*',
-        '*', '*', ' ', ' ', ' ', ' ', '*',
-        '*', '*', ' ', '*', '*', '*', '*',
-    };
-    TillFactory *factory2 = new TillFactory();
-    factory2->addBillboardMessage("Room 2");
-    factory2->addBillboardMessage("Go to Study!!!");
-    Room *room2 = new Room(7, 5, 1, factory2, t2);
-    room2->setRightRoomNumber(0);
-    room2->setDownRoomNumber(3);
-    world->addRoom(room2);
-
-    char t3[] = {
-        '*', '*', ' ', '*', '*', '*', '*',
-        '*', '*', ' ', ' ', ' ', '*', '*',
-        '*', '*', ' ', ' ', ' ', ' ', ' ',
-        '*', '*', ' ', ' ', ' ', '*', '*',
-        '*', '*', '*', '!', '*', '*', '*',
-    };
-    TillFactory *factory3 = new TillFactory();
-    factory3->addBillboardMessage("Room 3");
-    Room *room3 = new Room(7, 5, 2, factory3, t3);
-    room3->setUpRoomNumber(0);
-    room3->setRightRoomNumber(3);
-    world->addRoom(room3);
-
-    char t4[] = {
-        '*', '*', ' ', '*', '*',
-        '*', ' ', ' ', ' ', '*',
-        ' ', ' ', ' ', ' ', '*',
-        '*', ' ', ' ', ' ', '!',
-        '*', ' ', ' ', ' ', '*',
-        '*', ' ', ' ', ' ', '*',
-        '*', '*', '*', '*', '*',
-    };
-    TillFactory *factory4 = new TillFactory();
-    factory4->addBillboardMessage("Room 4");
-    Room *room4 = new Room(5, 7, 3, factory4, t4);
-    room4->setUpRoomNumber(1);
-    room4->setLeftRoomNumber(2);
-    world->addRoom(room4);
-
-    player->currentWorld = world;
-    player->currentRoomNumber = 0;
-    player->position = player->getCurrentRoom()->getWidth()+1;
 }
