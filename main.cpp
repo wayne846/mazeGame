@@ -9,11 +9,11 @@ int main(){
     World *world1 = new World();
     Player *player = new Player();
 
-    WorldSetter::worldSetup(world1, player);
+    GameController::worldSetup(world1, player);
 
     while(input != 'z'){
         display(player);
-        input = getch();
+        input = GameController::input();
         if (input=='w' || input=='s' || input=='a' || input=='d') player->move(input);
         if (input=='e') player->interact();
     }

@@ -1,5 +1,6 @@
 #include "game.h"
 #include <iostream>
+#include <conio.h>
 
 using namespace std;
 
@@ -116,6 +117,7 @@ void Lever::interact(){
     Message::getInstance()->addMessage("The door in somewhere open");
     notifyObservers();
     isInteractive = false;
+    symbol = '\\';
 }
 void Lever::detected(){
     Message::getInstance()->addMessage("press e to use the lever('/')");
@@ -154,6 +156,21 @@ void Gate::update(){
     interact();
 }
 
+//Rock
+Rock::Rock(){
+    this->symbol = 'R';
+    this->isBlock = true;
+    this->isInteractive = false;
+}
+void Rock::interact(){}
+void Rock::detected(){}
+bool Rock::getIsBlock(){
+    char c = GameController::getPlayerInput();
+    isBlock = tryMove();
+    return isBlock;
+}
+bool Rock
+
 //TillFactory
 TillFactory::TillFactory(){}
 Tile* TillFactory::createTile(char a){
@@ -173,7 +190,7 @@ Tile* TillFactory::createTile(char a){
             l->setId(leverIdList.front());
             leverIdList.pop();
         }
-        WorldSetter::addSubject(l);
+        GameController::addSubject(l);
         return l;
     }
     if (a == 'D'){
@@ -182,7 +199,7 @@ Tile* TillFactory::createTile(char a){
             g->setId(gateIdList.front());
             gateIdList.pop();
         }
-        WorldSetter::addObserver(g);
+        GameController::addObserver(g);
         return g;
     }
     return 0;
@@ -283,6 +300,22 @@ void Room::setLeftRoomNumber(int n){
 }
 void Room::setRightRoomNumber(int n){
     rightRoomNumber = n;
+}
+int Room::upPosition(int p){
+    if(p - width < 0) return -1;
+    return p-width;
+}
+int Room::downPosition(int p){
+    if(p + width >= width*height) return -1;
+    return p+width;
+}
+int Room::leftPosition(int p){
+    if(p % width == 0) return -1;
+    return p-1;
+}
+int Room::rightPosition(int p){
+    if((p+1) % width == 0) return -1;
+    return p+1;
 }
 
 //World
@@ -394,42 +427,48 @@ Room* Player::getCurrentRoom(){
 char Player::getSymbol(){
     return symbol;
 }
+int Player::position;
 
-//WorldSetter
-list<Subject*> WorldSetter::subjectList;
-list<Observer*> WorldSetter::observerList;
-Room* WorldSetter::createRoom1(){
+//GameController
+list<Subject*> GameController::subjectList;
+list<Observer*> GameController::observerList;
+Room* GameController::createRoom1(){
     char t[] = {
-        '*', '*', '!', '*', '*',
-        '*', ' ', ' ', ' ', '*',
-        '*', ' ', ' ', ' ', ' ',
-        '*', ' ', ' ', ' ', '*',
-        '*', '*', ' ', '*', '*',
+        '*', '*', '!', '*', '*', '*', '*',
+        '*', ' ', ' ', ' ', ' ', ' ', '*',
+        '*', ' ', ' ', ' ', ' ', ' ', '/',
+        '*', ' ', ' ', ' ', ' ', ' ', 'D',
+        '*', ' ', ' ', ' ', ' ', ' ', '*',
+        '*', ' ', ' ', ' ', ' ', ' ', '*',
+        '*', ' ', ' ', ' ', ' ', ' ', '*',
+        '*', '*', '*', '*', '*', '*', '*'
     };
     TillFactory *factory = new TillFactory();
     factory->addBillboardMessage("Room 1");
-    Room *room = new Room(5, 5, 0, factory, t);
+    Room *room = new Room(7, 8, 0, factory, t);
     room->setRightRoomNumber(1);
     room->setDownRoomNumber(2);
     return room;
 }
-Room* WorldSetter::createRoom2(){
+Room* GameController::createRoom2(){
     char t[] = {
-        '*', '*', '!', '*', '*', '!', '*',
-        '*', '*', ' ', ' ', ' ', ' ', '*',
-        ' ', ' ', ' ', ' ', ' ', ' ', '/',
-        '*', '*', ' ', ' ', ' ', ' ', '*',
-        '*', '*', ' ', '*', '*', '*', '*',
+        '*', '*', '!', '*', '*', '*', '*',
+        '*', ' ', ' ', ' ', ' ', ' ', '*',
+        '*', ' ', ' ', ' ', ' ', ' ', '*',
+        'D', ' ', ' ', ' ', ' ', ' ', '*',
+        '*', ' ', ' ', ' ', ' ', ' ', '*',
+        '*', ' ', ' ', ' ', ' ', ' ', '*',
+        '*', ' ', ' ', ' ', ' ', ' ', '*',
+        '*', '*', '*', '*', '*', '*', '*'
     };
     TillFactory *factory = new TillFactory();
     factory->addBillboardMessage("Room 2");
-    factory->addBillboardMessage("Go to Study!!!");
-    Room *room = new Room(7, 5, 1, factory, t);
+    Room *room = new Room(7, 8, 1, factory, t);
     room->setRightRoomNumber(0);
     room->setDownRoomNumber(3);
     return room;
 }
-Room* WorldSetter::createRoom3(){
+Room* GameController::createRoom3(){
     char t[] = {
         '*', '*', ' ', '*', '*', '*', '*',
         '*', '*', ' ', ' ', ' ', '*', '*',
@@ -444,7 +483,7 @@ Room* WorldSetter::createRoom3(){
     room->setRightRoomNumber(3);
     return room;
 }
-Room* WorldSetter::createRoom4(){
+Room* GameController::createRoom4(){
     char t[] = {
         '*', '*', ' ', '*', '*',
         '*', ' ', ' ', ' ', '*',
@@ -461,7 +500,7 @@ Room* WorldSetter::createRoom4(){
     room->setLeftRoomNumber(2);
     return room;
 }
-void WorldSetter::linkingTiles(){
+void GameController::linkingTiles(){
     for (Subject *subject : subjectList){
         for (Observer *observer : observerList){
             if (subject->getTag() == TAG_LEVER && observer->getTag() == TAG_GATE && subject->getId() == observer->getId()){
@@ -470,11 +509,9 @@ void WorldSetter::linkingTiles(){
         }
     }
 }
-void WorldSetter::worldSetup(World* world, Player* player){
+void GameController::worldSetup(World* world, Player* player){
     world->addRoom(createRoom1());
     world->addRoom(createRoom2());
-    world->addRoom(createRoom3());
-    world->addRoom(createRoom4());
 
     linkingTiles();
 
@@ -482,12 +519,20 @@ void WorldSetter::worldSetup(World* world, Player* player){
     player->currentRoomNumber = 0;
     player->position = player->getCurrentRoom()->getWidth()+1;
 }
-void WorldSetter::addSubject(Subject* s){
+void GameController::addSubject(Subject* s){
     subjectList.push_back(s);
 }
-void WorldSetter::addObserver(Observer* o){
+void GameController::addObserver(Observer* o){
     observerList.push_back(o);
 }
+char GameController::input(){
+    playerInput = getch();
+    return playerInput;
+}
+char GameController::getPlayerInput(){
+    return playerInput;
+}
+char GameController::playerInput = ' ';
 
 //display
 void display(Player *player){
@@ -504,6 +549,7 @@ void display(Player *player){
     }
 
     Message *message = Message::getInstance();
+    message->addMessage(Player::position);
     cout << message->getMessage() << '\n';
     message->clearMessage();
 }

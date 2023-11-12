@@ -131,6 +131,16 @@ class Gate : public Tile, public Observer{
 
 };
 
+class Rock : public Tile{
+    public:
+        Rock();
+
+        void interact();
+        void detected();
+        bool getIsBlock();
+        bool tryMove(char);
+};
+
 //製造Tile，還可以修改Tile 簡單工廠
 class TillFactory{
     private:
@@ -178,6 +188,11 @@ class Room{
         void setDownRoomNumber(int);
         void setLeftRoomNumber(int);
         void setRightRoomNumber(int);
+        
+        int upPosition(int);
+        int downPosition(int);
+        int leftPosition(int);
+        int rightPosition(int);
 };
 
 //世界由多個房間組成
@@ -205,7 +220,7 @@ class Player{
         void detectAround(char dir); //檢測周圍可互動的磚塊，玩家面向的方向優先
 
     public:
-        int position;
+        static int position;
         World *currentWorld;
         int currentRoomNumber;
         
@@ -220,7 +235,7 @@ class Player{
 };
 
 //用來初始化世界，感覺是個笨方法
-class WorldSetter{
+class GameController{
     private:
         static list<Subject*> subjectList;
         static list<Observer*> observerList;
@@ -230,10 +245,16 @@ class WorldSetter{
         static Room* createRoom4();
         static void linkingTiles(); //將觀察者模式的物件連結起來
 
+        static char playerInput;
+
     public:
         static void worldSetup(World*, Player*);
         static void addSubject(Subject*);
         static void addObserver(Observer*);
+
+        static char input();
+
+        static char getPlayerInput();
 };
 
 //顯示畫面
