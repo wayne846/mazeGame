@@ -60,12 +60,6 @@ void Observer::setSubject(Subject *s){
 }
 
 //Tile
-bool Tile::getIsBlock(){
-    return isBlock;
-}
-bool Tile::getIsInteractive(){
-    return isInteractive;
-}
 char Tile::getSymbol(){
     return symbol;
 }
@@ -78,6 +72,12 @@ Wall::Wall(){
 }
 void Wall::interact(){}
 void Wall::detected(){}
+bool Wall::getIsBlock(){
+    return isBlock;
+}
+bool Wall::getIsInteractive(){
+    return isInteractive;
+}
 
 //Air
 Air::Air(){
@@ -87,6 +87,12 @@ Air::Air(){
 }
 void Air::interact(){}
 void Air::detected(){}
+bool Air::getIsBlock(){
+    return isBlock;
+}
+bool Air::getIsInteractive(){
+    return isInteractive;
+}
 
 //Billboard
 Billboard::Billboard(){
@@ -103,6 +109,12 @@ void Billboard::detected(){
 }
 void Billboard::setMessage(string m){
     message = m;
+}
+bool Billboard::getIsBlock(){
+    return isBlock;
+}
+bool Billboard::getIsInteractive(){
+    return isInteractive;
 }
 
 //Lever
@@ -121,6 +133,12 @@ void Lever::interact(){
 }
 void Lever::detected(){
     Message::getInstance()->addMessage("press e to use the lever('/')");
+}
+bool Lever::getIsBlock(){
+    return isBlock;
+}
+bool Lever::getIsInteractive(){
+    return isInteractive;
 }
 void Lever::registerObserver(Observer *o){
     observers.push_back(o);
@@ -152,6 +170,12 @@ void Gate::interact(){
     subject->removeObserver(this);
 }
 void Gate::detected(){}
+bool Gate::getIsBlock(){
+    return isBlock;
+}
+bool Gate::getIsInteractive(){
+    return isInteractive;
+}
 void Gate::update(){
     interact();
 }
@@ -166,10 +190,29 @@ void Rock::interact(){}
 void Rock::detected(){}
 bool Rock::getIsBlock(){
     char c = GameController::getPlayerInput();
-    isBlock = tryMove();
+    if (c=='w' || c=='a' || c=='s' || c=='d'){
+        isBlock = tryMove(c);
+    }
     return isBlock;
 }
-bool Rock
+bool Rock::getIsInteractive(){
+    return isInteractive;
+}
+bool Rock::tryMove(char dir){
+    //Message::getInstance()->addMessage("you are trying move Rock");
+    bool canMove = false;
+    Room* currentRoom = GameController::getPlayerCurrentRoom();
+    int playerPosition = GameController::getPlayerPosition(); //玩家位置
+    int nowPosition = currentRoom->biasPosition(dir, playerPosition); //石頭的位置
+    int nextPosition = currentRoom->biasPosition(dir, nowPosition); //預計要推的位置
+    
+    if(currentRoom->getContent(nextPosition)->getSymbol() == ' '){
+        currentRoom->setContent(nextPosition, this);
+        currentRoom->setContent(nowPosition, new Air());
+        canMove = true;
+    }
+    return !canMove;
+}
 
 //TillFactory
 TillFactory::TillFactory(){}
@@ -202,6 +245,7 @@ Tile* TillFactory::createTile(char a){
         GameController::addObserver(g);
         return g;
     }
+    if (a == 'R') return new Rock();
     return 0;
 }
 void TillFactory::addBillboardMessage(string s){
@@ -301,21 +345,45 @@ void Room::setLeftRoomNumber(int n){
 void Room::setRightRoomNumber(int n){
     rightRoomNumber = n;
 }
+int Room::biasPosition(char dir, int p){
+    int nextP = p;
+    switch(dir){
+        case 'w':
+            nextP = upPosition(p);
+            break;
+        case 's':
+            nextP = downPosition(p);
+            break;
+        case 'a':
+            nextP = leftPosition(p);
+            break;
+        case 'd':
+            nextP = rightPosition(p);
+            break;
+        default:
+            nextP = -1;
+    }
+    return nextP;
+}
 int Room::upPosition(int p){
-    if(p - width < 0) return -1;
+    if (p - width < 0) return -1;
     return p-width;
 }
 int Room::downPosition(int p){
-    if(p + width >= width*height) return -1;
+    if (p + width >= width*height) return -1;
     return p+width;
 }
 int Room::leftPosition(int p){
-    if(p % width == 0) return -1;
+    if (p % width == 0) return -1;
     return p-1;
 }
 int Room::rightPosition(int p){
-    if((p+1) % width == 0) return -1;
+    if ((p+1) % width == 0) return -1;
     return p+1;
+}
+void Room::setContent(int i, Tile* tile){
+    if (i < 0 || i >= getRoomSize()) return;
+    content[i] = tile;
 }
 
 //World
@@ -455,7 +523,7 @@ Room* GameController::createRoom2(){
         '*', '*', '!', '*', '*', '*', '*',
         '*', ' ', ' ', ' ', ' ', ' ', '*',
         '*', ' ', ' ', ' ', ' ', ' ', '*',
-        'D', ' ', ' ', ' ', ' ', ' ', '*',
+        'D', ' ', ' ', 'R', ' ', ' ', '*',
         '*', ' ', ' ', ' ', ' ', ' ', '*',
         '*', ' ', ' ', ' ', ' ', ' ', '*',
         '*', ' ', ' ', ' ', ' ', ' ', '*',
@@ -532,7 +600,25 @@ char GameController::input(){
 char GameController::getPlayerInput(){
     return playerInput;
 }
+void GameController::setPlayer(Player* p){
+    player = p;
+}
+int GameController::getPlayerPosition(){
+    if(player == 0){
+        cout << "\nERROR: GameController::player has not set\n";
+        return 0;
+    }
+    return player->position;
+}
+Room* GameController::getPlayerCurrentRoom(){
+    if(player == 0){
+        cout << "\nERROR: GameController::player has not set\n";
+        return 0;
+    }
+    return player->getCurrentRoom();
+}
 char GameController::playerInput = ' ';
+Player* GameController::player = 0;
 
 //display
 void display(Player *player){
@@ -549,7 +635,6 @@ void display(Player *player){
     }
 
     Message *message = Message::getInstance();
-    message->addMessage(Player::position);
     cout << message->getMessage() << '\n';
     message->clearMessage();
 }

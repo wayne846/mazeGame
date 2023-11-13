@@ -71,8 +71,8 @@ class Tile{
         virtual void interact() = 0;
         virtual void detected() = 0;
 
-        bool getIsBlock();
-        bool getIsInteractive();
+        virtual bool getIsBlock() = 0;
+        virtual bool getIsInteractive() = 0;
         char getSymbol();
 };
 
@@ -83,6 +83,9 @@ class Wall : public Tile{
 
         void interact();
         void detected();
+
+        bool getIsBlock();
+        bool getIsInteractive();
 };
 
 //空氣
@@ -92,6 +95,9 @@ class Air : public Tile{
 
         void interact();
         void detected();
+
+        bool getIsBlock();
+        bool getIsInteractive();
 };
 
 //告示牌，可顯示文字
@@ -103,6 +109,10 @@ class Billboard : public Tile{
 
         void interact();
         void detected();
+
+        bool getIsBlock();
+        bool getIsInteractive();
+
         void setMessage(string);
 };
 
@@ -115,33 +125,46 @@ class Lever : public Tile, public Subject{
 
         void interact();
         void detected();
+
+        bool getIsBlock();
+        bool getIsInteractive();
+
         void registerObserver(Observer*);
         void removeObserver(Observer*);
         void notifyObservers();
 };
 
-//閘門，由拉桿開啟，開啟後將自己移除拉桿的觀察者名單
+//閘門，由拉桿開啟
 class Gate : public Tile, public Observer{
     public:
         Gate();
 
-        void interact();
+        void interact(); //開啟後將自己移除拉桿的觀察者名單
         void detected();
+
+        bool getIsBlock();
+        bool getIsInteractive();
+
         void update();
 
 };
 
+//石頭，可以被推，不能一次推多顆石頭
 class Rock : public Tile{
     public:
         Rock();
 
         void interact();
         void detected();
+
         bool getIsBlock();
+        bool getIsInteractive();
+
         bool tryMove(char);
 };
 
-//製造Tile，還可以修改Tile 簡單工廠
+//簡單工廠
+//製造Tile，還可以修改Tile
 class TillFactory{
     private:
         queue<string> billboardMessageList; //告示牌的訊息 依序放入
@@ -188,11 +211,15 @@ class Room{
         void setDownRoomNumber(int);
         void setLeftRoomNumber(int);
         void setRightRoomNumber(int);
+        void setContent(int, Tile*);
         
+        //傳入wasd和位置，回傳其對應位置，超出範圍就回傳-1
+        int biasPosition(char, int);
         int upPosition(int);
         int downPosition(int);
         int leftPosition(int);
         int rightPosition(int);
+
 };
 
 //世界由多個房間組成
@@ -235,6 +262,7 @@ class Player{
 };
 
 //用來初始化世界，感覺是個笨方法
+//可以在全域範圍接觸Player
 class GameController{
     private:
         static list<Subject*> subjectList;
@@ -246,6 +274,7 @@ class GameController{
         static void linkingTiles(); //將觀察者模式的物件連結起來
 
         static char playerInput;
+        static Player* player;
 
     public:
         static void worldSetup(World*, Player*);
@@ -253,6 +282,10 @@ class GameController{
         static void addObserver(Observer*);
 
         static char input();
+
+        static void setPlayer(Player*);
+        static int getPlayerPosition();
+        static Room* getPlayerCurrentRoom();
 
         static char getPlayerInput();
 };

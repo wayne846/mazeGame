@@ -10,6 +10,7 @@ int main(){
     Player *player = new Player();
 
     GameController::worldSetup(world1, player);
+    GameController::setPlayer(player);
 
     while(input != 'z'){
         display(player);
