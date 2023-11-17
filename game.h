@@ -160,6 +160,7 @@ class Rock : public Tile{
         bool getIsBlock();
         bool getIsInteractive();
 
+        //移動石頭，可以就回傳true
         bool tryMove(char);
 };
 
@@ -288,7 +289,9 @@ class GameController{
         static Room* getPlayerCurrentRoom();
 
         static char getPlayerInput();
+
+        //顯示畫面
+        static void display();
 };
 
-//顯示畫面
-void display(Player*);
+

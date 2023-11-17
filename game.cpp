@@ -191,7 +191,7 @@ void Rock::detected(){}
 bool Rock::getIsBlock(){
     char c = GameController::getPlayerInput();
     if (c=='w' || c=='a' || c=='s' || c=='d'){
-        isBlock = tryMove(c);
+        isBlock = !tryMove(c);
     }
     return isBlock;
 }
@@ -199,19 +199,19 @@ bool Rock::getIsInteractive(){
     return isInteractive;
 }
 bool Rock::tryMove(char dir){
-    //Message::getInstance()->addMessage("you are trying move Rock");
     bool canMove = false;
     Room* currentRoom = GameController::getPlayerCurrentRoom();
     int playerPosition = GameController::getPlayerPosition(); //玩家位置
     int nowPosition = currentRoom->biasPosition(dir, playerPosition); //石頭的位置
     int nextPosition = currentRoom->biasPosition(dir, nowPosition); //預計要推的位置
     
+    if(nextPosition == -1) return canMove;
     if(currentRoom->getContent(nextPosition)->getSymbol() == ' '){
         currentRoom->setContent(nextPosition, this);
         currentRoom->setContent(nowPosition, new Air());
         canMove = true;
     }
-    return !canMove;
+    return canMove;
 }
 
 //TillFactory
@@ -617,11 +617,7 @@ Room* GameController::getPlayerCurrentRoom(){
     }
     return player->getCurrentRoom();
 }
-char GameController::playerInput = ' ';
-Player* GameController::player = 0;
-
-//display
-void display(Player *player){
+void GameController::display(){
     system("cls");
     for (int i = 0; i < player->getCurrentRoom()->getRoomSize(); i++){
         if (i == player->position){
@@ -638,3 +634,5 @@ void display(Player *player){
     cout << message->getMessage() << '\n';
     message->clearMessage();
 }
+char GameController::playerInput = ' ';
+Player* GameController::player = 0;

@@ -13,7 +13,7 @@ int main(){
     GameController::setPlayer(player);
 
     while(input != 'z'){
-        display(player);
+        GameController::display();
         input = GameController::input();
         if (input=='w' || input=='s' || input=='a' || input=='d') player->move(input);
         if (input=='e') player->interact();
